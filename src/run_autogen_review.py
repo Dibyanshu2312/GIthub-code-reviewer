@@ -2,7 +2,7 @@ import os
 import smtplib
 import subprocess
 import sys
-import time  # <-- ADDED THIS IMPORT
+import time 
 from email import encoders
 from email.mime.base import MIMEBase
 from email.mime.multipart import MIMEMultipart
@@ -31,6 +31,7 @@ Check the code against our company's general coding standards:
 """
 
 # === 2. HELPER FUNCTIONS ===
+# ... (All your helper functions: get_changed_files, run_flake8, run_eslint, etc. remain exactly the same) ...
 
 def get_changed_files(repo_name, commit_sha, github_token):
     """Uses the GitHub API to find all changed files in the specific commit."""
@@ -41,7 +42,6 @@ def get_changed_files(repo_name, commit_sha, github_token):
 
         changed_files = []
         for file in commit.files:
-            # Skip files in node_modules or .github
             if "node_modules/" in file.filename or ".github/" in file.filename:
                 continue
             print(f"Found changed file: {file.filename}")
@@ -50,8 +50,6 @@ def get_changed_files(repo_name, commit_sha, github_token):
     except Exception as e:
         print(f"Error getting changed files from GitHub: {e}")
         return []
-
-# --- Tool functions for our agent ---
 
 def run_flake8(file_path):
     """A tool function that runs flake8 on a Python file (.py)."""
@@ -73,7 +71,6 @@ def run_eslint(file_path):
         return "Error: run_eslint is for .js, .jsx, .ts, or .tsx files."
     print(f"--- Running ESLint on {file_path} ---")
     try:
-        # We add --no-error-on-unmatched-pattern to avoid errors on single-file runs
         result = subprocess.run(
             ["npx", "eslint", file_path, "--no-error-on-unmatched-pattern"], 
             capture_output=True, text=True, timeout=60
@@ -88,7 +85,6 @@ def run_stylelint(file_path):
         return "Error: run_stylelint is for .css or .scss files."
     print(f"--- Running Stylelint on {file_path} ---")
     try:
-        # We add --allow-empty-input to avoid errors on empty files
         result = subprocess.run(
             ["npx", "stylelint", file_path, "--allow-empty-input"], 
             capture_output=True, text=True, timeout=60
@@ -159,10 +155,9 @@ if __name__ == "__main__":
         print("Error: OPENAI_API_KEY environment variable not set.")
         sys.exit(1)
 
-    # This tells AutoGen to use the OpenRouter URL
     config_list = [
         {
-            "model": "mistralai/mistral-small-24b-instruct-2501:free", # <-- THIS IS THE FIX
+            "model": "mistralai/mistral-small-24b-instruct-2501:free",
             "api_key": OPENAI_API_KEY,
             "base_url": "https://openrouter.ai/api/v1"
         }
@@ -178,28 +173,32 @@ You have these tools available:
 - `run_eslint(file_path)`: For JavaScript/TypeScript files (.js, .jsx, .ts, .tsx).
 - `run_stylelint(file_path)`: For stylesheet files (.css, .scss).
 - `run_html_validate(file_path)`: For HTML files (.html).
-
-When given a file path:
-1. Look at the file extension.
-2. Choose the ONE correct tool for that file type.
-3. Call the tool with the `file_path`.
-4. Report the findings from the tool.
-5. If you do NOT have a tool (e.g., .md, .json), state: "No linter available for this file type."
+When given a file path, choose the ONE correct tool, call it, and report the findings.
+If you do NOT have a tool (e.g., .md, .json), state: "No linter available for this file type."
 """,
         llm_config={"config_list": config_list},
     )
 
-    code_optimizer = AssistantAgent(
-        name="Code_Optimizer",
-        system_message="You are a senior developer. Your job is to review the code and suggest optimizations for performance, memory, and readability. **State the language you are reviewing (e.g., Python, React)**. Do not comment on style issues a linter would find.",
-        llm_config={"config_list": config_list},
-    )
+    # <-- MODIFICATION: COMBINED AGENT -->
+    # We combine the Optimizer and Standard Enforcer into one agent
+    code_reviewer = AssistantAgent(
+        name="Code_Reviewer",
+        system_message=f"""You are a senior developer and tech lead. 
+Your job is to review code for two things:
+1.  **Optimizations:** Suggest improvements for performance, memory, and readability.
+2.  **Coding Standards:** Check the code against our company standards.
 
-    code_standard_enforcer = AssistantAgent(
-        name="Standard_Enforcer",
-        system_message=f"You are a tech lead. **State the language/framework you are reviewing** and check the code against these rules:\n{YOUR_CODE_STANDARD_PROMPT}",
+**State the language/framework you are reviewing** first.
+Then, provide your feedback in two clear sections: "Optimization Suggestions" and "Coding Standards Check".
+Do not comment on style issues a linter would find (like commas, spacing).
+
+Our Coding Standards:
+{YOUR_CODE_STANDARD_PROMPT}
+""",
         llm_config={"config_list": config_list},
     )
+    
+    # <-- We no longer need code_optimizer or code_standard_enforcer -->
 
     user_proxy = UserProxyAgent(
         name="User_Proxy",
@@ -250,36 +249,33 @@ When given a file path:
             full_report_text += f"Error: Could not read file.\n\n"
             continue
 
-        # Task 1: Run the Code Checker Agent
+        # Task 1: Run the Code Checker Agent (Same as before)
         lint_task = f"Please run the correct linter for the file: '{file_path}'."
         user_proxy.initiate_chat(code_checker, message=lint_task, clear_history=True)
         linter_report = user_proxy.last_message(code_checker)["content"]
         full_report_text += f"**Linter/Bug Check ({language}):**\n{linter_report}\n\n"
 
-        # Task 2: Run the Optimizer Agent
-        optimize_task = f"Here is the code from '{file_path}' (Language: {language}). Provide optimization feedback:\n\n```{language}\n{code_content}\n```"
-        user_proxy.initiate_chat(code_optimizer, message=optimize_task, clear_history=True)
-        optimization_report = user_proxy.last_message(code_optimizer)["content"]
-        full_report_text += f"**Optimization Suggestions:**\n{optimization_report}\n\n"
-
-        # Task 3: Run the Standard Enforcer Agent
-        standard_task = f"Here is the code from '{file_path}' (Language: {language}). Check it against our standards:\n\n```{language}\n{code_content}\n```"
-        user_proxy.initiate_chat(code_standard_enforcer, message=standard_task, clear_history=True)
-        standard_report = user_proxy.last_message(code_standard_enforcer)["content"]
-        full_report_text += f"**Coding Standards Check:**\n{standard_report}\n\n"
+        # <-- MODIFICATION: CALL THE COMBINED AGENT -->
+        # Task 2 & 3 are now one call
+        review_task = f"Here is the code from '{file_path}' (Language: {language}). Please review it for optimizations and standards:\n\n```{language}\n{code_content}\n```"
+        
+        user_proxy.initiate_chat(code_reviewer, message=review_task, clear_history=True)
+        
+        review_report = user_proxy.last_message(code_reviewer)["content"]
+        full_report_text += f"**Optimization & Standards Review:**\n{review_report}\n\n" # The report will contain both sections
 
         full_report_text += f"--- End of Report for {file_path} ---\n\n"
 
-        # <-- ADDED DELAY HERE -->
+        # We still keep the delay, just in case of "requests per minute" limits
         print("Waiting 10 seconds to avoid rate limits...")
-        time.sleep(10) # Wait 10 seconds before processing the next file
+        time.sleep(10) 
 
     # --- 4. Generate PDF and Send Email ---
 
     print("\n=== All files analyzed. Generating final report. ===")
     create_pdf(full_report_text, "report.pdf")
 
-    developer_email = f"{GITHUB_ACTOR}@users.noreply.github.com" # Default GitHub email
+    developer_email = f"{GITHUB_ACTOR}@users.noreply.github.com" 
     email_subject = f"Code Review Report for {REPO_NAME}"
     email_body = f"Hi {GITHUB_ACTOR},\n\nHere is the automated code review report for your recent push ({COMMIT_SHA[:7]}).\n\nPlease find the full report attached."
 
