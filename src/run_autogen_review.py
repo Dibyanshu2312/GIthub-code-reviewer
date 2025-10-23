@@ -158,7 +158,7 @@ if __name__ == "__main__":
     config_list = [
         {
             # <-- CHANGE #1: USING A MODEL KNOWN FOR RELIABLE TOOL-CALLING -->
-            "model": "anthropic/claude-3-haiku-20240307",
+            "model": 'x-ai/grok-code-fast-1',
             
             "api_key": OPENAI_API_KEY,
             "base_url": "https://openrouter.ai/api/v1"
