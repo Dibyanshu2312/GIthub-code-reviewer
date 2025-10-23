@@ -1,6 +1,6 @@
 pyautogen
 openai
-PyGithub
+PyGithub>=2.0.0  # <-- ADD VERSION REQUIREMENT HERE
 fpdf2
 python-dotenv
 autogen
