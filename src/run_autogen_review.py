@@ -158,11 +158,17 @@ if __name__ == "__main__":
         print("Error: OPENAI_API_KEY environment variable not set.")
         sys.exit(1)
 
-    config_list = config_list_from_models(model_list=["gpt-4-turbo"], api_key=OPENAI_API_KEY)
+config_list = [
+    {
+        "model": "gpt-4-turbo", # Or the model you want to use
+        "api_key": OPENAI_API_KEY,
+        "base_url": "https://openrouter.ai/api/v1" # This is the important part
+    }
+]
 
     # --- Define AutoGen Agents ---
 
-    code_checker = AssistantAgent(
+code_checker = AssistantAgent(
         name="Code_Checker",
         system_message="""You are a code linter dispatcher. Your job is to check for bugs and syntax errors using the correct tool.
 You have these tools available:
@@ -181,26 +187,25 @@ When given a file path:
         llm_config={"config_list": config_list},
     )
 
-    code_optimizer = AssistantAgent(
+code_optimizer = AssistantAgent(
         name="Code_Optimizer",
         system_message="You are a senior developer. Your job is to review the code and suggest optimizations for performance, memory, and readability. **State the language you are reviewing (e.g., Python, React)**. Do not comment on style issues a linter would find.",
         llm_config={"config_list": config_list},
     )
 
-    code_standard_enforcer = AssistantAgent(
+code_standard_enforcer = AssistantAgent(
         name="Standard_Enforcer",
         system_message=f"You are a tech lead. **State the language/framework you are reviewing** and check the code against these rules:\n{YOUR_CODE_STANDARD_PROMPT}",
         llm_config={"config_list": config_list},
     )
 
-    user_proxy = UserProxyAgent(
+user_proxy = UserProxyAgent(
         name="User_Proxy",
         human_input_mode="NEVER",
         code_execution_config=False,
         llm_config=False,
     )
-
-    user_proxy.register_function(
+user_proxy.register_function(
         function_map={
             "run_flake8": run_flake8,
             "run_eslint": run_eslint,
@@ -210,22 +215,21 @@ When given a file path:
     )
 
     # --- Run the Review ---
+print("Starting Multi-Language AutoGen Code Review...")
+changed_files = get_changed_files(REPO_NAME, COMMIT_SHA, GITHUB_TOKEN) 
 
-    print("Starting Multi-Language AutoGen Code Review...")
-    changed_files = get_changed_files(REPO_NAME, COMMIT_SHA, GITHUB_TOKEN) 
-
-    if not changed_files:
+if not changed_files:
         print("No files changed in this push. Exiting.")
         sys.exit(0)
 
-    full_report_text = f"AutoGen Code Review for commit {COMMIT_SHA[:7]}\nTriggered by: {GITHUB_ACTOR}\n\n"
-    language_map = {
+full_report_text = f"AutoGen Code Review for commit {COMMIT_SHA[:7]}\nTriggered by: {GITHUB_ACTOR}\n\n"
+language_map = {
         ".py": "Python", ".js": "JavaScript", ".jsx": "React (JSX)",
         ".ts": "TypeScript", ".tsx": "React (TSX) / Angular", ".css": "CSS",
         ".scss": "SCSS", ".html": "HTML",
     }
 
-    for file_path in changed_files:
+for file_path in changed_files:
         print(f"\n=== Analyzing file: {file_path} ===")
         full_report_text += f"--- Report for {file_path} ---\n\n"
 
@@ -266,13 +270,13 @@ When given a file path:
 
     # --- 4. Generate PDF and Send Email ---
 
-    print("\n=== All files analyzed. Generating final report. ===")
-    create_pdf(full_report_text, "report.pdf")
+print("\n=== All files analyzed. Generating final report. ===")
+create_pdf(full_report_text, "report.pdf")
 
-    developer_email = f"{GITHUB_ACTOR}@users.noreply.github.com" # Default GitHub email
-    email_subject = f"Code Review Report for {REPO_NAME}"
-    email_body = f"Hi {GITHUB_ACTOR},\n\nHere is the automated code review report for your recent push ({COMMIT_SHA[:7]}).\n\nPlease find the full report attached."
+developer_email = f"{GITHUB_ACTOR}@users.noreply.github.com" # Default GitHub email
+email_subject = f"Code Review Report for {REPO_NAME}"
+email_body = f"Hi {GITHUB_ACTOR},\n\nHere is the automated code review report for your recent push ({COMMIT_SHA[:7]}).\n\nPlease find the full report attached."
 
-    send_email(developer_email, email_subject, email_body, "report.pdf")
+send_email(developer_email, email_subject, email_body, "report.pdf")
 
-    print("=== AutoGen Code Review process finished. ===")
+print("=== AutoGen Code Review process finished. ===")
