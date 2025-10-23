@@ -277,7 +277,7 @@ def main():
     config_list = [
         {
             # Using a reliable free model from OpenRouter
-            "model": "meta-llama/llama-3.1-8b-instruct:free",
+            "model": "x-ai/grok-code-fast-1",
             "api_key": OPENAI_API_KEY,
             "base_url": "https://openrouter.ai/api/v1",
             # Rate limiting configuration
