@@ -155,9 +155,12 @@ if __name__ == "__main__":
         print("Error: OPENAI_API_KEY environment variable not set.")
         sys.exit(1)
 
+    # This tells AutoGen to use the OpenRouter URL
     config_list = [
         {
-            "model": "mistralai/mistral-small-24b-instruct-2501:free",
+            # --- THIS IS THE CHANGE ---
+            "model": "x-ai/grok-code-fast-1", 
+            
             "api_key": OPENAI_API_KEY,
             "base_url": "https://openrouter.ai/api/v1"
         }
