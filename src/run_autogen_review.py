@@ -150,6 +150,7 @@ def send_email(to_email, subject, body, attachment_path):
         print(f"Error sending email: {e}")
 
 # === 3. MAIN EXECUTION ===
+# === 3. MAIN EXECUTION ===
 if __name__ == "__main__":
     if not OPENAI_API_KEY:
         print("Error: OPENAI_API_KEY environment variable not set.")
@@ -159,13 +160,21 @@ if __name__ == "__main__":
     config_list = [
         {
             # --- THIS IS THE CHANGE ---
-            "model": "x-ai/grok-code-fast-1", 
+            # Using a model known for reliable tool-calling
             
+            "model": "openai/gpt-4o-mini",
+            
+            # Or you could try Claude Haiku:
+            # "model": "anthropic/claude-3-haiku-20240307",
+
             "api_key": OPENAI_API_KEY,
             "base_url": "https://openrouter.ai/api/v1"
         }
     ]
 
+    # --- Define AutoGen Agents ---
+    
+    # (Rest of your script is exactly the same...)
     # --- Define AutoGen Agents ---
 
     code_checker = AssistantAgent(
