@@ -3,3 +3,4 @@ openai
 PyGithub
 fpdf2
 python-dotenv
+autogen
