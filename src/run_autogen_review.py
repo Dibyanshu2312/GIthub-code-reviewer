@@ -130,7 +130,7 @@ if __name__ == "__main__":
         {
             "model": "mistralai/mistral-small-24b-instruct-2501:free", # Free model
             "api_key": OPENAI_API_KEY,
-            "base_url": "[https://openrouter.ai/api/v1](https://openrouter.ai/api/v1)"
+            "base_url": "https://openrouter.ai/api/v1"
         }
     ]
     llm_config = {"config_list": config_list}
