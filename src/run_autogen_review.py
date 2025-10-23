@@ -31,7 +31,6 @@ Check the code against our company's general coding standards:
 """
 
 # === 2. HELPER FUNCTIONS ===
-# ... (All your helper functions: get_changed_files, run_flake8, run_eslint, etc. remain exactly the same) ...
 
 def get_changed_files(repo_name, commit_sha, github_token):
     """Uses the GitHub API to find all changed files in the specific commit."""
@@ -133,7 +132,7 @@ def send_email(to_email, subject, body, attachment_path):
             part = MIMEBase("application", "octet-stream")
             part.set_payload(attachment.read())
             encoders.encode_base_64(part)
-            part.add_header("Content-Disposition", f"attachment; filename= {os.path.basename(attachment_path)}")
+            part.add_header("Content-Disposition", f"attachment; filename= {os.basename(attachment_path)}")
             msg.attach(part)
     except Exception as e:
         print(f"Error attaching PDF: {e}")
@@ -150,7 +149,6 @@ def send_email(to_email, subject, body, attachment_path):
         print(f"Error sending email: {e}")
 
 # === 3. MAIN EXECUTION ===
-# === 3. MAIN EXECUTION ===
 if __name__ == "__main__":
     if not OPENAI_API_KEY:
         print("Error: OPENAI_API_KEY environment variable not set.")
@@ -159,40 +157,34 @@ if __name__ == "__main__":
     # This tells AutoGen to use the OpenRouter URL
     config_list = [
         {
-            # --- THIS IS THE CHANGE ---
-            # Using a model known for reliable tool-calling
+            # <-- CHANGE #1: USING A MODEL KNOWN FOR RELIABLE TOOL-CALLING -->
+            "model": "anthropic/claude-3-haiku-20240307",
             
-            "model": "openai/gpt-4o-mini",
-            
-            # Or you could try Claude Haiku:
-            # "model": "anthropic/claude-3-haiku-20240307",
-
             "api_key": OPENAI_API_KEY,
             "base_url": "https://openrouter.ai/api/v1"
         }
     ]
 
     # --- Define AutoGen Agents ---
-    
-    # (Rest of your script is exactly the same...)
-    # --- Define AutoGen Agents ---
 
+    # <-- CHANGE #2: STRICTER PROMPT FOR THE CODE CHECKER -->
     code_checker = AssistantAgent(
         name="Code_Checker",
         system_message="""You are a code linter dispatcher. Your job is to check for bugs and syntax errors using the correct tool.
-You have these tools available:
-- `run_flake8(file_path)`: For Python files (.py).
-- `run_eslint(file_path)`: For JavaScript/TypeScript files (.js, .jsx, .ts, .tsx).
-- `run_stylelint(file_path)`: For stylesheet files (.css, .scss).
-- `run_html_validate(file_path)`: For HTML files (.html).
-When given a file path, choose the ONE correct tool, call it, and report the findings.
-If you do NOT have a tool (e.g., .md, .json), state: "No linter available for this file type."
+You MUST follow these rules:
+1.  You are given a `file_path`. Look at its file extension.
+2.  Find the ONE correct tool from this list:
+    - `run_flake8(file_path)`: For `.py` files.
+    - `run_eslint(file_path)`: For `.js`, `.jsx`, `.ts`, `.tsx` files.
+    - `run_stylelint(file_path)`: For `.css`, `.scss` files.
+    - `run_html_validate(file_path)`: For `.html` files.
+3.  You MUST call the matching tool.
+4.  If AND ONLY IF the file extension is NOT in that list (e.g., .md, .json), you must reply with the exact text: "No linter available for this file type."
 """,
         llm_config={"config_list": config_list},
     )
 
-    # <-- MODIFICATION: COMBINED AGENT -->
-    # We combine the Optimizer and Standard Enforcer into one agent
+    # <-- This is the combined agent we created earlier -->
     code_reviewer = AssistantAgent(
         name="Code_Reviewer",
         system_message=f"""You are a senior developer and tech lead. 
@@ -210,8 +202,6 @@ Our Coding Standards:
         llm_config={"config_list": config_list},
     )
     
-    # <-- We no longer need code_optimizer or code_standard_enforcer -->
-
     user_proxy = UserProxyAgent(
         name="User_Proxy",
         human_input_mode="NEVER",
@@ -261,20 +251,19 @@ Our Coding Standards:
             full_report_text += f"Error: Could not read file.\n\n"
             continue
 
-        # Task 1: Run the Code Checker Agent (Same as before)
+        # Task 1: Run the Code Checker Agent
         lint_task = f"Please run the correct linter for the file: '{file_path}'."
         user_proxy.initiate_chat(code_checker, message=lint_task, clear_history=True)
         linter_report = user_proxy.last_message(code_checker)["content"]
         full_report_text += f"**Linter/Bug Check ({language}):**\n{linter_report}\n\n"
 
-        # <-- MODIFICATION: CALL THE COMBINED AGENT -->
         # Task 2 & 3 are now one call
         review_task = f"Here is the code from '{file_path}' (Language: {language}). Please review it for optimizations and standards:\n\n```{language}\n{code_content}\n```"
         
         user_proxy.initiate_chat(code_reviewer, message=review_task, clear_history=True)
         
         review_report = user_proxy.last_message(code_reviewer)["content"]
-        full_report_text += f"**Optimization & Standards Review:**\n{review_report}\n\n" # The report will contain both sections
+        full_report_text += f"**Optimization & Standards Review:**\n{review_report}\n\n"
 
         full_report_text += f"--- End of Report for {file_path} ---\n\n"
 
