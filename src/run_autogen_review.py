@@ -160,9 +160,9 @@ if __name__ == "__main__":
 
 config_list = [
     {
-        "model": "gpt-4-turbo", # Or the model you want to use
+        "model": "mistralai/mistral-7b-instruct-free", # <-- FREE MODEL
         "api_key": OPENAI_API_KEY,
-        "base_url": "https://openrouter.ai/api/v1" # This is the important part
+        "base_url": "https://openrouter.ai/api/v1"
     }
 ]
 
